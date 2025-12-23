@@ -27,4 +27,27 @@
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="elem.txt">
+      <Filter>Файлы ресурсов</Filter>
+    </Text>
+    <Text Include="input.txt">
+      <Filter>Файлы ресурсов</Filter>
+    </Text>
+    <Text Include="node.txt">
+      <Filter>Файлы ресурсов</Filter>
+    </Text>
+    <Text Include="q.txt">
+      <Filter>Файлы ресурсов</Filter>
+    </Text>
+    <Text Include="q+.txt">
+      <Filter>Файлы ресурсов</Filter>
+    </Text>
+    <Text Include="qn.txt">
+      <Filter>Файлы ресурсов</Filter>
+    </Text>
+    <Text Include="sigma.txt">
+      <Filter>Файлы ресурсов</Filter>
+    </Text>
+  </ItemGroup>
 </Project>
