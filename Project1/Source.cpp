@@ -1,5 +1,8 @@
 #include "stdafx.h"
 
+#define MULTISTEP
+
+
 using namespace std;
 
 int maxiter = 100; // максимальное количество итераций прямая задача
@@ -17,6 +20,7 @@ int nr_full = 0; // количество точек по r
 int nz_full = 0; // количество точек по z
 int n1 = 0; // количество 1 краевых
 int n2 = 0; // количество 2 краевых
+const double VEL_LEN = 100.0;
 
 vector<vector<double>> G(4); // матрица жесткости
 vector<vector<double>> M(4); // матрица массы
@@ -56,7 +60,7 @@ vector<double> true_eps(5); // истинное решение
 vector<double> tmp_eps(5); // решение на текущей итерации прямой задачи
 vector<double> next_eps(5); // решение на следующей итерации прямой задачи
 vector<double> delta_tmp_eps(5); // решение на текущей итерации прямой задачи с прираще-нием
-double start_u = 0.001; // начальное приближение (u0)
+double start_u = 1e-6; // начальное приближение (u0)
 double tmp_u; // решение на текущей итерации обратной задачи
 double delta_u; // приращение на текущей итерации
 double w = 1; // веса
@@ -83,6 +87,14 @@ vector<vector<double>> grid_n;
 vector<vector<int>> num_elem_n;
 vector<vector<double>> grid_dop;
 vector<vector<int>> num_elem_dop;
+
+double xA = 0;
+double yA = 0;
+double zA = 0;
+double xB = 0;
+double yB = 100.0;
+double zB = -VEL_LEN;
+
 
 // подсчет в заданной точке
 double result_q(double r, double z, vector<double> q, vector<vector<double>> grid, vector<vector<int>> num_elem)
@@ -191,7 +203,7 @@ void SigmaGeneration()
 		// нижняя граница .. верхняя граница .. sigma
 		input >> sloy[i][0] >> sloy[i][1] >> sloy[i][2];
 	}
-
+#ifdef MULTISTEP
 	int n_sloy_dop; // кол-во слоев
 	input >> n_sloy_dop;
 	sloy_dop.resize(n_sloy_dop);
@@ -202,6 +214,7 @@ void SigmaGeneration()
 		// нижняя граница .. верхняя граница .. sigma
 		input >> sloy_dop[i][0] >> sloy_dop[i][1] >> sloy_dop[i][2];
 	}
+#endif
 }
 // cетка
 void GridGeneration()
@@ -720,12 +733,44 @@ vector<double> direct_task()
 		AddInGlobal(i, num_elem_n);
 	}
 	//b[0] = 1;
-	First(grid_n);
-	for (int i = 0; i < grid_n.size(); i++) {
-		if (grid_n[i][0] == 0 && grid_n[i][1] == 0) {
-			b[i] = tok;
+
+
+	// Make VEL
+	//for (int i = 0; i < grid_n.size(); i++) {
+	//	if (grid_n[i][0] == 0 && grid_n[i][1] == 0) {
+	//		b[i] = tok;
+	//	}
+	//}
+
+	if (num_elem.size() != 0) {
+		for (int i(0); i < num_elem.size(); ++i) {
+			if (grid_n[num_elem[i][0]][0] == 0.0 && (grid_n[num_elem[i][0]][1] <= zB && zB <= grid_n[num_elem[i][2]][1])) {
+				b[num_elem[i][0]] = -tok * (grid_n[num_elem[i][2]][1] - zB) / (grid_n[num_elem[i][2]][1] - grid_n[num_elem[i][0]][1]);
+				b[num_elem[i][2]] = -tok * (zB - grid_n[num_elem[i][0]][1]) / (grid_n[num_elem[i][2]][1] - grid_n[num_elem[i][0]][1]);
+			}
+			else if (grid_n[num_elem[i][0]][0] == 0.0 && (grid_n[num_elem[i][1]][1] <= zA && zA <= grid_n[num_elem[i][3]][1])) {
+				b[num_elem[i][0]] = tok * (grid_n[num_elem[i][2]][1] - zA) / (grid_n[num_elem[i][2]][1] - grid_n[num_elem[i][0]][1]);
+				b[num_elem[i][2]] = tok * (zA - grid_n[num_elem[i][0]][1]) / (grid_n[num_elem[i][2]][1] - grid_n[num_elem[i][0]][1]);
+			}
 		}
 	}
+	else {
+//#ifdef MULTISTEP
+		for (int i(0); i < num_elem_n.size(); ++i) {
+			if (grid_n[num_elem_n[i][0]][0] == 0.0 && (grid_n[num_elem_n[i][0]][1] <= zB && zB <= grid_n[num_elem_n[i][2]][1])) {
+				b[num_elem_n[i][0]] = -tok * (grid_n[num_elem_n[i][2]][1] - zB) / (grid_n[num_elem_n[i][2]][1] - grid_n[num_elem_n[i][0]][1]);
+				b[num_elem_n[i][2]] = -tok * (zB - grid_n[num_elem_n[i][0]][1]) / (grid_n[num_elem_n[i][2]][1] - grid_n[num_elem_n[i][0]][1]);
+			}
+			else if (grid_n[num_elem_n[i][0]][0] == 0.0 && (grid_n[num_elem_n[i][1]][1] <= zA && zA <= grid_n[num_elem_n[i][3]][1])) {
+				b[num_elem_n[i][0]] = tok * (grid_n[num_elem_n[i][2]][1] - zA) / (grid_n[num_elem_n[i][2]][1] - grid_n[num_elem_n[i][0]][1]);
+				b[num_elem_n[i][2]] = tok * (zA - grid_n[num_elem_n[i][0]][1]) / (grid_n[num_elem_n[i][2]][1] - grid_n[num_elem_n[i][0]][1]);
+			}
+		}
+//#endif
+	}
+
+	First(grid_n);
+
 	LU();
 	LOS();
 	//user_pardiso(ig, jg, di, al, au, b, x0);
@@ -778,15 +823,18 @@ vector<double> direct_task_dop()
 	return x0;
 }
 
-double xA = 0;
-double yA = 0;
-double xB = 0;
-double yB = 100;
-
+// SPORNO
 double result_xyz_q(double x, double y, vector<double> q, vector<vector<double>> grid, vector<vector<int>> num_elem) {
+	double r = sqrt(x*x + y*y);
+	double z = 0.0;
+	
 	double r1 = sqrt((x - xA) * (x - xA) + (y - yA) * (y - yA));
 	double r2 = sqrt((x - xB) * (x - xB) + (y - yB) * (y - yB));
-	return result_q(r1, 0, q, grid, num_elem) - result_q(r2, 0, q, grid, num_elem);
+	
+	//double z1 = 0.0;
+	//double z2 = -zB;
+	return result_q(r, z, q, grid, num_elem); // -result_q(r2, z2, q, grid, num_elem);
+	//return result_q(r1, 0.0, q, grid, num_elem) - result_q(r2, 0.0, q, grid, num_elem);
 }
 
 void result_function_q(vector<double> q, vector<vector<double>> grid, vector<vector<int>> num_elem) {
@@ -884,8 +932,12 @@ void field_selection()
 	}
 	MatrixPortrait(num_elem_n);
 	qn = direct_task(); // прямая задача
+
+
 	// обнуление параметров
 	clearAllVectors();
+
+#ifdef MULTISTEP
 	GridGeneration();
 	// сохранение сетки 
 	for (int i = 0; i < grid.size(); i++) {
@@ -898,15 +950,23 @@ void field_selection()
 	}
 	MatrixPortrait(num_elem_dop);
 	q_dop = direct_task_dop(); // прямая задача дополнительная
+#endif // MULTISTEP
 	qv.resize(qn.size());
 
 	// итоговый результат 
+#ifdef MULTISTEP
 	for (int i = 0; i < grid_n.size(); i++)
 	{
 		qv[i] = result_q(grid_n[i][0], grid_n[i][1], qn, grid_n, num_elem_n) +
 			result_q(grid_n[i][0], grid_n[i][1], q_dop, grid_dop, num_elem_dop);
+		//qv[i] = result_q(grid_n[i][0], grid_n[i][1], qn, grid_n, num_elem_n);
 		//cout << qv[i] << endl; 
 	}
+#endif
+
+#ifndef MULTISTEP
+	qv = qn;
+#endif
 }
 void field_selection_direct_task()
 {
@@ -916,15 +976,23 @@ void field_selection_direct_task()
 	qn = direct_task(); // прямая задача
 	// обнуление параметров
 	clearAllVectors();
+#ifdef MULTISTEP
 	nv = grid_dop.size();
 	MatrixPortrait(num_elem_dop);
 	q_dop = direct_task_dop(); // прямая задача дополнительная
+#endif
 	// итоговый результат 
+#ifdef MULTISTEP
 	for (int i = 0; i < grid_n.size(); i++)
 	{
 		qv[i] = result_q(grid_n[i][0], grid_n[i][1], qn, grid_n, num_elem_n) +
 			result_q(grid_n[i][0], grid_n[i][1], q_dop, grid_dop, num_elem_dop);
+		//qv[i] = result_q(grid_n[i][0], grid_n[i][1], qn, grid_n, num_elem_n);
 	}
+#endif
+#ifndef MULTISTEP
+	qv = qn;
+#endif
 }
 
 void inverse_problem() {
@@ -936,14 +1004,27 @@ void inverse_problem() {
 		double sum = 0; // левая часть уравнения
 		double f = 0; // правая часть уравнения
 		//tok = tmp_u;
-		sloy_dop[1][2] = tmp_u;
+		//sloy_dop[1][2] = tmp_u;
+#ifdef MULTISTEP
+		sloy_dop[2][2] = tmp_u;
+#endif
+#ifndef MULTISTEP
+		sloy[2][2] = tmp_u;
+#endif
 		// приращение
 		field_selection_direct_task();
 		result_function_q(tmp_eps, qv, grid_n, num_elem_n);
 		result_function_q(qv, grid_n, num_elem_n);
 
 		//tok = 1.05 * tmp_u;
-		sloy_dop[1][2] = 1.05 * tmp_u;
+		//sloy_dop[1][2] = 1.05 * tmp_u;
+#ifdef MULTISTEP
+		sloy_dop[2][2] = 1.05 * tmp_u;
+#endif // MULTISTEP
+#ifndef MULTISTEP
+		sloy[2][2] = 1.05 * tmp_u;
+#endif // MULTISTEP
+
 		field_selection_direct_task();
 		result_function_q(delta_tmp_eps, qv, grid_n, num_elem_n);
 		result_function_q(qv, grid_n, num_elem_n);
@@ -970,7 +1051,14 @@ void inverse_problem() {
 			}
 			J_next = 0;
 			//tok = delta_u * betta + tmp_u;
-			sloy_dop[1][2] = delta_u * betta + tmp_u;
+			//sloy_dop[1][2] = delta_u * betta + tmp_u;
+#ifdef MULTISTEP
+			sloy_dop[2][2] = delta_u * betta + tmp_u;
+#endif
+#ifndef MULTISTEP
+			sloy[2][2] = delta_u * betta + tmp_u;
+#endif
+
 			field_selection_direct_task();
 			result_function_q(next_eps, qv, grid_n, num_elem_n);
 			result_function_q(qv, grid_n, num_elem_n);
@@ -988,13 +1076,26 @@ void inverse_problem() {
 		}
 		betta = 1;
 		//cout << "iter = " << iter + 1 << setprecision(15) << " tok = " << tok << endl;
-		cout << "iter = " << iter + 1 << setprecision(15) << " sigma = " << sloy_dop[1][2] << endl;
+		//cout << "iter = " << iter + 1 << setprecision(15) << " sigma = " << sloy_dop[1][2] << endl;
+#ifdef MULTISTEP
+		cout << "iter = " << iter + 1 << setprecision(15) << " sigma = " << sloy_dop[2][2] << endl;
+#endif
+#ifndef MULTISTEP
+		cout << "iter = " << iter + 1 << setprecision(15) << " sigma = " << sloy[2][2] << endl;
+#endif
 		if (abs(J_prev - J_next) < eps) {
 			break;
 		}
 		else {
 			//tmp_u = tok;
-			tmp_u = sloy_dop[1][2];
+			//tmp_u = sloy_dop[1][2];
+#ifdef MULTISTEP
+			tmp_u = sloy_dop[2][2];
+#endif
+#ifndef MULTISTEP
+			tmp_u = sloy[2][2];
+#endif
+
 		}
 	}
 }
